@@ -95,4 +95,47 @@ class AppRow(Label):
             btn.bind(on_release=lambda *_: (callback(), dropdown.dismiss()))
             dropdown.add_widget(btn)
         
-        add_item("Information", self.show_info
+        add_item("Information", self.show_info)
+        add_item("Show Graph", self.show_graph)
+        add_item("Close App", self.close_app)
+        return dropdown
+
+    def on_touch_down(self, touch):
+        if self.collide_point(*touch.pos) and touch.button == "right":
+            self.dropdown.open(self)
+            return True
+        return super().on_touch_down(touch)
+
+    def show_info(self):
+        from kivy.app import App
+        App.get_running_app().show_app_info(self.app_name)
+
+    def show_graph(self):
+        from kivy.app import App
+        App.get_running_app().show_app_graph(self.app_name)
+
+    def close_app(self):
+        for proc in psutil.process_iter(["name"]):
+            try:
+                if proc.info["name"] == self.app_name:
+                    proc.terminate()
+            except Exception:
+                pass
+
+
+# =========================
+#   APP DASHBOARD (Standard)
+# =========================
+class AppDashboard(BoxLayout):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = "vertical"
+        self.rows = {}
+
+    def update_apps(self, rates):
+        for app, (down, up) in rates.items():
+            if app not in self.rows:
+                row = AppRow(app)
+                self.rows[app] = row
+                self.add_widget(row)
+            self.rows[app].text = f"{app}  |  ⬇ {down:.2f} kbps  |  ⬆ {up:.2f} kbps"
