@@ -11,7 +11,7 @@ import psutil
 import math
 
 # =========================
-#   1. TRAFFIC GRAPH (CLEAN MATH FIX)
+#   1. TRAFFIC GRAPH
 # =========================
 class TrafficGraph(BoxLayout):
     def __init__(self, **kwargs):
@@ -23,7 +23,7 @@ class TrafficGraph(BoxLayout):
             ylabel='Speed (KB/s)',
             x_ticks_minor=0,
             x_ticks_major=10,
-            y_ticks_major=100,           # Start with clean 100 steps
+            y_ticks_major=100,
             y_grid_label=True,
             x_grid_label=True,
             padding=5,
@@ -47,72 +47,59 @@ class TrafficGraph(BoxLayout):
             self.points_list.pop(0)
             self.points_list = [(x - 1, y) for x, y in self.points_list]
 
-        # --- MATH FIX: Force Multiples of 100 ---
         current_max = max([y for x, y in self.points_list]) if self.points_list else 0
-        
-        # This formula forces the top number to be 100, 200, 500, etc.
-        # It prevents weird numbers like "863"
         if current_max < 100:
             target_ymax = 100
         else:
             target_ymax = math.ceil(current_max / 100) * 100
         
         self.graph.ymax = int(target_ymax)
-        
-        # Always divide into exactly 4 clean chunks
         self.graph.y_ticks_major = int(target_ymax / 4)
-        
         self.plot.points = self.points_list
 
 
 # =========================
-#   2. TABLE HEADER (Visual Guide)
+#   2. TABLE HEADER
 # =========================
 class TableHeader(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.size_hint_y = None
-        self.height = dp(40)  # Taller header
+        self.height = dp(40)
         self.padding = (dp(10), 0)
         
-        # Column 1
+        # Yellow Text for Header
         self.add_widget(Label(text="APPLICATION", size_hint_x=0.5, halign='left', bold=True, color=[1,1,0,1]))
-        # Column 2
         self.add_widget(Label(text="DOWNLOAD", size_hint_x=0.25, bold=True, color=[0,1,0,1]))
-        # Column 3
         self.add_widget(Label(text="UPLOAD", size_hint_x=0.25, bold=True, color=[0,0.5,1,1]))
 
 
 # =========================
-#   3. APP ROW (The "Ghost" Fix)
+#   3. APP ROW
 # =========================
 class AppRow(BoxLayout):
     def __init__(self, app_name, **kwargs):
         super().__init__(**kwargs)
         self.app_name = app_name
-        
-        # CRITICAL FIX: Explicitly set height or it disappears in ScrollView
         self.size_hint_y = None
-        self.height = dp(40)
+        self.height = dp(40)  # Fixed Height is Critical
         self.padding = (dp(10), 0)
 
-        # 1. App Name (White Color)
+        # White App Name
         self.lbl_name = Label(
             text=app_name, 
             size_hint_x=0.5, 
             halign='left', 
             valign='middle',
             shorten=True,
-            color=[1, 1, 1, 1]  # Force White
+            color=[1, 1, 1, 1]
         )
         self.lbl_name.bind(size=self.lbl_name.setter('text_size'))
         self.add_widget(self.lbl_name)
 
-        # 2. Download
         self.lbl_down = Label(text="0.00", size_hint_x=0.25, color=[0,1,0,1])
         self.add_widget(self.lbl_down)
 
-        # 3. Upload
         self.lbl_up = Label(text="0.00", size_hint_x=0.25, color=[0,0.5,1,1])
         self.add_widget(self.lbl_up)
 
@@ -128,9 +115,6 @@ class AppRow(BoxLayout):
             btn = Button(text=text, size_hint_y=None, height=dp(30), font_size="13sp")
             btn.bind(on_release=lambda *_: (callback(), dropdown.dismiss()))
             dropdown.add_widget(btn)
-        
-        add_item("Information", self.show_info)
-        add_item("Show Graph", self.show_graph)
         add_item("Close App", self.close_app)
         return dropdown
 
@@ -139,14 +123,6 @@ class AppRow(BoxLayout):
             self.dropdown.open(self)
             return True
         return super().on_touch_down(touch)
-
-    def show_info(self):
-        from kivy.app import App
-        App.get_running_app().show_app_info(self.app_name)
-
-    def show_graph(self):
-        from kivy.app import App
-        App.get_running_app().show_app_graph(self.app_name)
 
     def close_app(self):
         for proc in psutil.process_iter(["name"]):
@@ -158,21 +134,21 @@ class AppRow(BoxLayout):
 
 
 # =========================
-#   4. APP DASHBOARD (Container Fix)
+#   4. APP DASHBOARD (FIXED SCROLLING)
 # =========================
 class AppDashboard(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.orientation = "vertical"
         
-        # 1. Add Header
+        # 1. Header
         self.add_widget(TableHeader())
         
-        # 2. Create Scrolling Area
+        # 2. Scroll View (Must disable horizontal scroll)
         from kivy.uix.scrollview import ScrollView
-        self.scroll_view = ScrollView(size_hint=(1, 1))
+        self.scroll_view = ScrollView(size_hint=(1, 1), do_scroll_x=False)
         
-        # 3. The Container for Rows (Must bind height!)
+        # 3. Rows Container (Binds height to content)
         self.rows_container = BoxLayout(orientation='vertical', size_hint_y=None)
         self.rows_container.bind(minimum_height=self.rows_container.setter('height'))
         
@@ -182,15 +158,18 @@ class AppDashboard(BoxLayout):
         self.rows = {}
 
     def update_apps(self, rates):
-        # Delete closed apps
+        # DEBUG: Un-comment this print to see if data is arriving in terminal
+        # print(f"[DEBUG] Updating Apps: {list(rates.keys())}") 
+
         current_apps = set(rates.keys())
         existing_apps = set(self.rows.keys())
         
+        # Remove old
         for app in existing_apps - current_apps:
             self.rows_container.remove_widget(self.rows[app])
             del self.rows[app]
 
-        # Add/Update apps
+        # Add new
         for app, (down, up) in rates.items():
             if app not in self.rows:
                 row = AppRow(app)
