@@ -3,31 +3,30 @@ from kivy.uix.label import Label
 from kivy.uix.dropdown import DropDown
 from kivy.uix.button import Button
 from kivy.metrics import dp
+from kivy.graphics import Color, Rectangle
 
 # --- GRAPH IMPORTS ---
 from kivy_garden.graph import Graph, MeshLinePlot
 import psutil
+import math
 
 # =========================
-#   TRAFFIC GRAPH (FIXED)
+#   1. TRAFFIC GRAPH (FIXED MATH)
 # =========================
 class TrafficGraph(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.orientation = 'vertical'
         
-        # 1. Create the Graph
-        # We use padding=5 so numbers are visible
-        # We use label_options to force text to be White and Bold
         self.graph = Graph(
             xlabel='Time (Seconds)',
             ylabel='Speed (KB/s)',
             x_ticks_minor=0,
-            x_ticks_major=10,            # Show X number every 10 seconds
-            y_ticks_major=20,            # Initial Y spacing
+            x_ticks_major=10,
+            y_ticks_major=20,
             y_grid_label=True,
             x_grid_label=True,
-            padding=5,                   # Padding 5 keeps numbers ON screen
+            padding=5,
             x_grid=True,
             y_grid=True,
             xmin=0, xmax=60,
@@ -35,58 +34,78 @@ class TrafficGraph(BoxLayout):
             label_options={'color': [1, 1, 1, 1], 'bold': True}
         )
 
-        # 2. Create the Plot (The Green Line)
         self.plot = MeshLinePlot(color=[0, 1, 0, 1])
         self.graph.add_plot(self.plot)
         self.add_widget(self.graph)
-
         self.points_list = [] 
 
     def update_graph(self, value):
-        # 1. Add new value to list
         current_x = len(self.points_list)
         self.points_list.append((current_x, value))
 
-        # 2. Scrolling Logic (Keep last 60 points)
         if len(self.points_list) > 60:
             self.points_list.pop(0)
             self.points_list = [(x - 1, y) for x, y in self.points_list]
 
-        # 3. INTELLIGENT SCALING (The "Anti-Clutter" Fix)
-        # Calculate the max speed currently in the list
+        # --- FIX: Rounding Logic to prevent Overlap ---
         current_max = max([y for x, y in self.points_list]) if self.points_list else 0
         
-        # Target is either 100 KB/s OR the current max + 20% buffer
-        target_ymax = max(100, current_max * 1.2)
+        # 1. Round UP to the nearest 100 (e.g., 140 -> 200, 850 -> 900)
+        # This ensures our ticks are always clean numbers like 0, 20, 40...
+        target_ymax = math.ceil(max(100, current_max * 1.2) / 100) * 100
         
         self.graph.ymax = int(target_ymax)
-        
-        # This is the magic line:
-        # It ensures we always have exactly 5 ticks on the Y-axis.
-        # If max is 100, ticks are 20. If max is 1000, ticks are 200.
         self.graph.y_ticks_major = int(target_ymax / 5)
-
-        # 4. Push data to graph
         self.plot.points = self.points_list
 
 
 # =========================
-#   APP ROW (Standard)
+#   2. TABLE HEADER (New!)
 # =========================
-class AppRow(Label):
+class TableHeader(BoxLayout):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.size_hint_y = None
+        self.height = dp(30)
+        self.padding = (dp(10), 0)
+        
+        # Column 1: App Name
+        self.add_widget(Label(text="APPLICATION", size_hint_x=0.5, halign='left', bold=True, color=[1,1,0,1]))
+        # Column 2: Download
+        self.add_widget(Label(text="DOWNLOAD", size_hint_x=0.25, bold=True, color=[0,1,0,1]))
+        # Column 3: Upload
+        self.add_widget(Label(text="UPLOAD", size_hint_x=0.25, bold=True, color=[0,0.5,1,1]))
+
+# =========================
+#   3. APP ROW (Now a Grid Row)
+# =========================
+class AppRow(BoxLayout):  # Changed from Label to BoxLayout
     def __init__(self, app_name, **kwargs):
         super().__init__(**kwargs)
         self.app_name = app_name
         self.size_hint_y = None
-        self.height = dp(28)
-        self.halign = "left"
-        self.valign = "middle"
+        self.height = dp(30)
         self.padding = (dp(10), 0)
-        self.bind(size=self._update_text)
+
+        # 1. App Name Label (Left Aligned)
+        self.lbl_name = Label(text=app_name, size_hint_x=0.5, halign='left', shorten=True)
+        self.lbl_name.bind(size=self.lbl_name.setter('text_size')) # Fix text alignment
+        self.add_widget(self.lbl_name)
+
+        # 2. Download Speed (Green)
+        self.lbl_down = Label(text="0.00", size_hint_x=0.25, color=[0,1,0,1])
+        self.add_widget(self.lbl_down)
+
+        # 3. Upload Speed (Blue)
+        self.lbl_up = Label(text="0.00", size_hint_x=0.25, color=[0,0.5,1,1])
+        self.add_widget(self.lbl_up)
+
         self.dropdown = self._create_dropdown()
 
-    def _update_text(self, *_):
-        self.text_size = self.size
+    def update_data(self, down, up):
+        # Update the numbers in the columns
+        self.lbl_down.text = f"{down:.2f} KB/s"
+        self.lbl_up.text = f"{up:.2f} KB/s"
 
     def _create_dropdown(self):
         dropdown = DropDown(auto_width=False, width=dp(160))
@@ -124,18 +143,42 @@ class AppRow(Label):
 
 
 # =========================
-#   APP DASHBOARD (Standard)
+#   4. APP DASHBOARD (Updated)
 # =========================
 class AppDashboard(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.orientation = "vertical"
+        
+        # Add the Header Row first!
+        self.add_widget(TableHeader())
+        
+        self.rows_container = BoxLayout(orientation='vertical', size_hint_y=None)
+        self.rows_container.bind(minimum_height=self.rows_container.setter('height'))
+        
+        # We wrap rows in a ScrollView in case you have 50 apps
+        from kivy.uix.scrollview import ScrollView
+        scroll = ScrollView(size_hint=(1, 1))
+        scroll.add_widget(self.rows_container)
+        self.add_widget(scroll)
+        
         self.rows = {}
 
     def update_apps(self, rates):
+        # Remove apps that closed
+        current_apps = set(rates.keys())
+        existing_apps = set(self.rows.keys())
+        
+        for app in existing_apps - current_apps:
+            self.rows_container.remove_widget(self.rows[app])
+            del self.rows[app]
+
+        # Update or Add apps
         for app, (down, up) in rates.items():
             if app not in self.rows:
                 row = AppRow(app)
                 self.rows[app] = row
-                self.add_widget(row)
-            self.rows[app].text = f"{app}  |  ⬇ {down:.2f} kbps  |  ⬆ {up:.2f} kbps"
+                self.rows_container.add_widget(row)
+            
+            # Use the new update function
+            self.rows[app].update_data(down, up)
