@@ -4,62 +4,65 @@ from kivy.uix.dropdown import DropDown
 from kivy.uix.button import Button
 from kivy.metrics import dp
 
-# --- NEW IMPORTS FOR THE GRAPH ---
+# --- GRAPH IMPORTS ---
 from kivy_garden.graph import Graph, MeshLinePlot
 import psutil
+import math
 
 # =========================
-#   TRAFFIC GRAPH (UPDATED)
+#   TRAFFIC GRAPH (FIXED)
 # =========================
 class TrafficGraph(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.orientation = 'vertical'
         
-        # 1. Create the Graph Object
+        # 1. Create the Graph with BETTER Spacing
         self.graph = Graph(
-            xlabel='Time (Seconds)',     # X-Axis Title
-            ylabel='Speed (KB/s)',       # Y-Axis Title
-            x_ticks_minor=1,
-            x_ticks_major=5,             # Show a number every 5 ticks
-            y_ticks_major=10,            # Show a number every 10 KB/s
-            y_grid_label=True,           # <--- THIS SHOWS THE NUMBERS ON Y-AXIS
-            x_grid_label=True,           # <--- THIS SHOWS THE NUMBERS ON X-AXIS
-            padding=5,
+            xlabel='Time (Seconds)',
+            ylabel='Speed (KB/s)',
+            x_ticks_minor=0,
+            x_ticks_major=10,            # Show X number every 10 seconds (Less clutter)
+            y_ticks_major=20,            # Initial Y spacing
+            y_grid_label=True,
+            x_grid_label=True,
+            padding=25,                  # <--- INCREASED THIS (Fixes text overlap)
             x_grid=True,
             y_grid=True,
-            xmin=0, xmax=50,             # 50 data points history
-            ymin=0, ymax=100             # Initial max Y scale
+            xmin=0, xmax=60,
+            ymin=0, ymax=100             # Start with 100 KB/s max
         )
 
-        # 2. Create the Plot (The green line)
+        # 2. Create the Plot
         self.plot = MeshLinePlot(color=[0, 1, 0, 1])  # Green Line
         self.graph.add_plot(self.plot)
         self.add_widget(self.graph)
 
-        # Internal storage
-        self.points_list = []  # Stores (x, y) coordinates
+        self.points_list = [] 
 
     def update_graph(self, value):
-        # 1. Add new value to list
-        # We use a simple counter for X (0, 1, 2...)
+        # 1. Add new value
         current_x = len(self.points_list)
         self.points_list.append((current_x, value))
 
-        # 2. Keep only last 50 points (Scrolling effect)
-        if len(self.points_list) > 50:
+        # 2. Scrolling Logic (Keep last 60 points)
+        if len(self.points_list) > 60:
             self.points_list.pop(0)
-            # Shift all X values back by 1 so the graph scrolls left
             self.points_list = [(x - 1, y) for x, y in self.points_list]
 
-        # 3. Auto-Scale Y Axis (If speed goes above 100 KB/s, zoom out)
-        if value > self.graph.ymax:
-            self.graph.ymax = value * 1.2
-            self.graph.y_ticks_major = int(self.graph.ymax / 5)
+        # 3. INTELLIGENT SCALING (The Fix for the "Wall of Numbers")
+        # We want roughly 5 labels on the Y-axis, no matter how fast the speed is.
+        # If speed is 1000, ticks should be 200. If speed is 100, ticks should be 20.
+        
+        # Calculate ideal max height (add 20% buffer)
+        current_max = max([y for x, y in self.points_list]) if self.points_list else 0
+        target_ymax = max(100, current_max * 1.2) # Never go below 100 KB/s
+        
+        self.graph.ymax = int(target_ymax)
+        self.graph.y_ticks_major = int(target_ymax / 5) # Always keep ~5 numbers on Y-axis
 
-        # 4. Push data to graph
+        # 4. Push data
         self.plot.points = self.points_list
-
 
 # =========================
 #   APP ROW (UNCHANGED)
@@ -67,14 +70,12 @@ class TrafficGraph(BoxLayout):
 class AppRow(Label):
     def __init__(self, app_name, **kwargs):
         super().__init__(**kwargs)
-
         self.app_name = app_name
         self.size_hint_y = None
         self.height = dp(28)
         self.halign = "left"
         self.valign = "middle"
         self.padding = (dp(10), 0)
-
         self.bind(size=self._update_text)
         self.dropdown = self._create_dropdown()
 
@@ -83,21 +84,14 @@ class AppRow(Label):
 
     def _create_dropdown(self):
         dropdown = DropDown(auto_width=False, width=dp(160))
-
         def add_item(text, callback):
-            btn = Button(
-                text=text,
-                size_hint_y=None,
-                height=dp(30),
-                font_size="13sp"
-            )
+            btn = Button(text=text, size_hint_y=None, height=dp(30), font_size="13sp")
             btn.bind(on_release=lambda *_: (callback(), dropdown.dismiss()))
             dropdown.add_widget(btn)
-
+        
         add_item("Information", self.show_info)
         add_item("Show Graph", self.show_graph)
         add_item("Close App", self.close_app)
-
         return dropdown
 
     def on_touch_down(self, touch):
@@ -122,7 +116,6 @@ class AppRow(Label):
             except Exception:
                 pass
 
-
 # =========================
 #   APP DASHBOARD (UNCHANGED)
 # =========================
@@ -138,7 +131,4 @@ class AppDashboard(BoxLayout):
                 row = AppRow(app)
                 self.rows[app] = row
                 self.add_widget(row)
-
-            self.rows[app].text = (
-                f"{app}  |  ⬇ {down:.2f} kbps  |  ⬆ {up:.2f} kbps"
-            )
+            self.rows[app].text = f"{app}  |  ⬇ {down:.2f} kbps  |  ⬆ {up:.2f} kbps"
