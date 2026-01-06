@@ -1,61 +1,26 @@
-ScreenManager:
-    MainScreen:
-    AppGraphScreen:
-    AppInfoScreen:
+#:import TrafficGraph ui.widgets.TrafficGraph
+#:import AppDashboard ui.widgets.AppDashboard
 
+BoxLayout:
+    orientation: 'vertical'
+    padding: 20
+    spacing: 10
 
-<MainScreen@Screen>:
-    name: "main"
+    # 1. The Title
+    Label:
+        text: "NetSentry: Live Traffic Monitor"
+        font_size: 24
+        size_hint_y: None   # Fixed height
+        height: 50
+        bold: True
+        color: 0, 1, 0, 1
 
-    BoxLayout:
-        orientation: "vertical"
+    # 2. The Graph (Takes 40% of screen)
+    TrafficGraph:
+        id: main_graph
+        size_hint_y: 0.4
 
-        TrafficGraph:
-            id: traffic_graph
-            size_hint_y: 0.45
-
-        ScrollView:
-            AppDashboard:
-                id: app_dashboard
-                size_hint_y: None
-                height: self.minimum_height
-
-
-<AppGraphScreen@Screen>:
-    name: "app_graph"
-
-    BoxLayout:
-        orientation: "vertical"
-
-        Button:
-            text: "← Back"
-            size_hint_y: None
-            height: "42dp"
-            on_release: app.go_back()
-
-        TrafficGraph:
-            id: app_graph
-            size_hint_y: 1
-
-
-<AppInfoScreen@Screen>:
-    name: "app_info"
-
-    BoxLayout:
-        orientation: "vertical"
-        padding: "12dp"
-        spacing: "8dp"
-
-        Button:
-            text: "← Back"
-            size_hint_y: None
-            height: "42dp"
-            on_release: app.go_back()
-
-        Label:
-            id: info_label
-            text: ""
-            halign: "left"
-            valign: "top"
-            markup: True
-            text_size: self.width, None
+    # 3. The App List (Takes remaining 60% of screen)
+    AppDashboard:
+        id: dashboard
+        size_hint_y: 0.6
