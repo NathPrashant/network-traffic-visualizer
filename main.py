@@ -17,10 +17,18 @@ class NetworkApp(App):
         return Builder.load_file("ui/dashboard.kv")
 
     def on_start(self):
+        # 1. Start Sniffer
         self.sniffer = PacketSniffer()
         self.sniffer.start()
+
+        # 2. Start Aggregator
         self.aggregator = TrafficAggregator()
+
+        # 3. Schedule UI updates (Every 1 second)
         Clock.schedule_interval(self.update_ui, 1.0)
+        
+        # --- NEW: Schedule Database Auto-Save (Every 5 seconds) ---
+        Clock.schedule_interval(self.save_database, 5.0)
 
     def update_ui(self, dt):
         traffic_data = self.sniffer.get_traffic_data()
@@ -33,9 +41,17 @@ class NetworkApp(App):
         if "dashboard" in self.root.ids:
             self.root.ids.dashboard.update_apps(rates)
 
+    def save_database(self, dt):
+        """Helper function to save data"""
+        if hasattr(self, 'aggregator'):
+            self.aggregator.save_data()
+
     def on_stop(self):
+        # Clean up threads and Save one last time
         if hasattr(self, 'sniffer'):
             self.sniffer.stop()
+        if hasattr(self, 'aggregator'):
+            self.aggregator.save_data() # <--- Final Save
 
 if __name__ == "__main__":
     NetworkApp().run()
