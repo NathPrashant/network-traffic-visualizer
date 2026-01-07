@@ -44,31 +44,47 @@ class PacketSniffer:
     def _on_packet(self, pkt):
         if not self.running:
             return
-
+        
+        # 1. Check for IP Layer (Internet Traffic)
         if IP in pkt:
             try:
-                # CHANGED: Check for BOTH TCP and UDP
-                if TCP in pkt:
-                    layer = TCP
-                elif UDP in pkt:
-                    layer = UDP
-                else:
-                    return # Skip if it's not TCP or UDP
-
                 size = len(pkt)
-                sport = pkt[layer].sport
-                dport = pkt[layer].dport
-                
-                # Logic to determine direction (same as before)
-                direction = "up"
-                app_port = sport 
-                
-                if self._is_local_port(dport):
-                    direction = "down"
-                    app_port = dport
-                
-                app_name = self._get_process_by_port(app_port)
+                app_name = "System (Unknown)"
+                direction = "up" # Default assumption
 
+                # A. Handle TCP/UDP (The ones with Ports)
+                if TCP in pkt or UDP in pkt:
+                    if TCP in pkt:
+                        layer = TCP
+                    else:
+                        layer = UDP
+                        
+                    sport = pkt[layer].sport
+                    dport = pkt[layer].dport
+                    
+                    # Logic to identify App
+                    app_port = sport
+                    if self._is_local_port(dport):
+                        direction = "down"
+                        app_port = dport
+                    
+                    app_name = self._get_process_by_port(app_port)
+
+                # B. Handle ICMP (Ping) - Protocol 1
+                elif pkt[IP].proto == 1:
+                    app_name = "System (ICMP/Ping)"
+                    # We can't tell direction easily without checking IP, 
+                    # so we just assume 'down' for incoming pings to be safe
+                    direction = "down" 
+
+                # C. Handle Everything Else (IGMP, GRE, ESP, SCTP)
+                else:
+                    # pkt[IP].proto gives the ID (e.g., 2=IGMP, 47=GRE, 50=ESP)
+                    proto_id = pkt[IP].proto
+                    app_name = f"System (Proto {proto_id})"
+                    direction = "down"
+
+                # Save Data
                 with self.lock:
                     if app_name not in self.traffic_data:
                         self.traffic_data[app_name] = [0, 0]
@@ -80,7 +96,17 @@ class PacketSniffer:
 
             except Exception:
                 pass
-
+        
+        # 2. OPTIONAL: Check for ARP (Layer 2 - Local Network)
+        # ARP is not 'IP', so it's outside the if IP block.
+        # Warning: ARP packets are tiny and won't affect speed much.
+        elif "ARP" in pkt:
+            with self.lock:
+                name = "System (ARP)"
+                if name not in self.traffic_data:
+                    self.traffic_data[name] = [0, 0]
+                self.traffic_data[name][0] += len(pkt)
+                    
     def _is_local_port(self, port):
         return True
 
