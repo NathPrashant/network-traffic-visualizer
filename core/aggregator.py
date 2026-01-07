@@ -1,33 +1,43 @@
 import time
+from core.database import DatabaseManager
 
 class TrafficAggregator:
     def __init__(self):
         self.last_check_time = time.time()
+        self.db = DatabaseManager()
+        
+        # Load history from DB so we don't start at 0 every time
+        # Format: {'Chrome': [Total_Down_Bytes, Total_Up_Bytes]}
+        self.global_totals = self.db.load_traffic()
 
-    def calculate_rates(self, traffic_data):
+    def calculate_rates(self, fresh_traffic_data):
         """
-        Takes raw bytes data: {'Chrome': [10240, 2048]}
-        Returns speed: {'Chrome': (10.0 KB/s, 2.0 KB/s)}
+        1. Takes fresh packet counts.
+        2. Adds them to the Global Totals.
+        3. Returns the Speed (KB/s) for the UI.
         """
         now = time.time()
         elapsed = now - self.last_check_time
-        
-        # Avoid division by zero if called too fast
-        if elapsed < 0.1:
-            elapsed = 0.1
-            
+        if elapsed < 0.1: elapsed = 0.1
         self.last_check_time = now
         
-        rates = {}
+        current_rates = {} # Speed per second (for UI)
         
-        # traffic_data format is: { 'AppName': [Download_Bytes, Upload_Bytes] }
-        for app_name, (down_bytes, up_bytes) in traffic_data.items():
+        for app_name, (new_down, new_up) in fresh_traffic_data.items():
+            # 1. Update Global Totals (The "Time Machine" part)
+            if app_name not in self.global_totals:
+                self.global_totals[app_name] = [0, 0]
             
-            # Convert Bytes to Kilobytes (KB)
-            # Divide by 'elapsed' to get Speed per Second
-            down_speed = (down_bytes / 1024) / elapsed
-            up_speed = (up_bytes / 1024) / elapsed
+            self.global_totals[app_name][0] += new_down
+            self.global_totals[app_name][1] += new_up
             
-            rates[app_name] = (down_speed, up_speed)
+            # 2. Calculate Speed (The "Live Graph" part)
+            down_speed = (new_down / 1024) / elapsed
+            up_speed = (new_up / 1024) / elapsed
+            current_rates[app_name] = (down_speed, up_speed)
             
-        return rates
+        return current_rates
+
+    def save_data(self):
+        """Triggers a database save of the global totals"""
+        self.db.save_traffic(self.global_totals)
