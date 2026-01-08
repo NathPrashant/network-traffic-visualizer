@@ -8,7 +8,8 @@ from kivy.uix.textinput import TextInput
 from kivy.metrics import dp
 from kivy.graphics import Color, Rectangle
 from kivy.core.window import Window
-from kivy_garden.graph import Graph, MeshLinePlot
+# --- CHANGED: Imported LinePlot instead of MeshLinePlot for thicker lines ---
+from kivy_garden.graph import Graph, LinePlot 
 import psutil
 import math
 import subprocess
@@ -60,9 +61,9 @@ class TrafficGraph(BoxLayout):
             x_grid=True, y_grid=True, xmin=0, xmax=60, ymin=0, ymax=100,
             label_options={'color': [1, 1, 1, 1], 'bold': True}
         )
-        # Added line_width=2 for thicker, more visible lines
-        self.plot_down = MeshLinePlot(color=COLOR_DOWN, line_width=2)
-        self.plot_up = MeshLinePlot(color=COLOR_UP, line_width=2)
+        # --- FIX: Used LinePlot with line_width=2 ---
+        self.plot_down = LinePlot(color=COLOR_DOWN, line_width=2)
+        self.plot_up = LinePlot(color=COLOR_UP, line_width=2)
         self.graph.add_plot(self.plot_down)
         self.graph.add_plot(self.plot_up)
         self.add_widget(self.graph)
@@ -311,7 +312,7 @@ class AppDashboard(BoxLayout):
 
 
 # =========================
-#   6. LOG VIEWER CLASSES (RESTORED!)
+#   6. LOG VIEWER CLASSES
 # =========================
 
 class LogRow(BoxLayout):
