@@ -8,7 +8,7 @@ from kivy.uix.textinput import TextInput
 from kivy.metrics import dp
 from kivy.graphics import Color, Rectangle
 from kivy.core.window import Window
-# --- CHANGED: Imported LinePlot instead of MeshLinePlot for thicker lines ---
+# Using LinePlot for thicker, visible lines
 from kivy_garden.graph import Graph, LinePlot 
 import psutil
 import math
@@ -61,7 +61,7 @@ class TrafficGraph(BoxLayout):
             x_grid=True, y_grid=True, xmin=0, xmax=60, ymin=0, ymax=100,
             label_options={'color': [1, 1, 1, 1], 'bold': True}
         )
-        # --- FIX: Used LinePlot with line_width=2 ---
+        # Using LinePlot with line_width=2 for visibility
         self.plot_down = LinePlot(color=COLOR_DOWN, line_width=2)
         self.plot_up = LinePlot(color=COLOR_UP, line_width=2)
         self.graph.add_plot(self.plot_down)
@@ -125,13 +125,14 @@ class AppGraphPopup(ModalView):
 class TableHeader(BoxLayout):
     def update_icons(self, sort_key, sort_desc):
         """Updates header text to show correct arrow on the active column."""
-        # 1. Reset all labels base text
-        self.btn_name.text = "APPLICATION"
+        # 1. Reset all labels base text (RENAMED AS REQUESTED)
+        self.btn_name.text = "APPLICATION (Sort A-Z)"
         self.btn_down.text = "DOWNLOAD"
         self.btn_up.text = "UPLOAD"
 
-        # 2. Determine arrow symbol
-        arrow = " ▼" if sort_desc else " ▲"
+        # 2. Determine arrow symbol (USING SAFE CHARACTERS)
+        # 'v' and '^' work in ALL fonts. 
+        arrow = " v" if sort_desc else " ^"
 
         # 3. Append arrow to the active column's button text
         if sort_key == 'name':
@@ -158,8 +159,8 @@ class TableHeader(BoxLayout):
             btn.bind(on_release=lambda x: sort_callback(key))
             return btn
 
-        # Keep references to the buttons so we can change their text later
-        self.btn_name = create_header_btn("APPLICATION", 'name', [1,1,0,1], 0.5)
+        # Create buttons (Initial text will be overwritten by update_icons immediately)
+        self.btn_name = create_header_btn("APPLICATION (Sort A-Z)", 'name', [1,1,0,1], 0.5)
         self.btn_down = create_header_btn("DOWNLOAD", 'download', COLOR_DOWN, 0.25)
         self.btn_up = create_header_btn("UPLOAD", 'upload', COLOR_UP, 0.25)
 
