@@ -16,6 +16,11 @@ import datetime
 import csv
 import time
 
+# --- NEW COLOR CONSTANTS ---
+COLOR_DOWN = [0, 1, 0, 1]       # Green
+COLOR_UP   = [0.2, 0.8, 1, 1]   # Bright Sky Blue (High Visibility)
+COLOR_TEXT = [1, 1, 1, 1]       # White
+
 # =========================
 #   1. TRAFFIC GRAPH
 # =========================
@@ -30,8 +35,8 @@ class TrafficGraph(BoxLayout):
             x_grid=True, y_grid=True, xmin=0, xmax=60, ymin=0, ymax=100,
             label_options={'color': [1, 1, 1, 1], 'bold': True}
         )
-        self.plot_down = MeshLinePlot(color=[0, 1, 0, 1])
-        self.plot_up = MeshLinePlot(color=[0, 0.5, 1, 1])
+        self.plot_down = MeshLinePlot(color=COLOR_DOWN)
+        self.plot_up = MeshLinePlot(color=COLOR_UP)  # <-- New Bright Color
         self.graph.add_plot(self.plot_down)
         self.graph.add_plot(self.plot_up)
         self.add_widget(self.graph)
@@ -88,17 +93,31 @@ class AppGraphPopup(ModalView):
 
 
 # =========================
-#   3. TABLE HEADER
+#   3. TABLE HEADER (NOW CLICKABLE)
 # =========================
 class TableHeader(BoxLayout):
-    def __init__(self, **kwargs):
+    def __init__(self, sort_callback, **kwargs):
         super().__init__(**kwargs)
         self.size_hint_y = None
         self.height = dp(40)
         self.padding = (dp(10), 0)
-        self.add_widget(Label(text="APPLICATION", size_hint_x=0.5, halign='left', bold=True, color=[1,1,0,1]))
-        self.add_widget(Label(text="DOWNLOAD", size_hint_x=0.25, bold=True, color=[0,1,0,1]))
-        self.add_widget(Label(text="UPLOAD", size_hint_x=0.25, bold=True, color=[0,0.5,1,1]))
+        
+        # Helper to create invisible buttons that look like labels
+        def create_header_btn(text, key, color, size_x):
+            btn = Button(
+                text=text, 
+                size_hint_x=size_x, 
+                background_color=(0,0,0,0), # Transparent
+                color=color,
+                bold=True
+            )
+            # When clicked, call the dashboard's sorting function
+            btn.bind(on_release=lambda x: sort_callback(key))
+            return btn
+
+        self.add_widget(create_header_btn("APPLICATION (Sort A-Z)", 'name', [1,1,0,1], 0.5))
+        self.add_widget(create_header_btn("DOWNLOAD ⬇", 'download', COLOR_DOWN, 0.25))
+        self.add_widget(create_header_btn("UPLOAD ⬆", 'upload', COLOR_UP, 0.25))
 
 
 # =========================
@@ -119,15 +138,15 @@ class AppRow(BoxLayout):
             halign='left', 
             valign='middle',
             shorten=True,
-            color=[1, 1, 1, 1]
+            color=COLOR_TEXT
         )
         self.lbl_name.bind(size=self.lbl_name.setter('text_size'))
         self.add_widget(self.lbl_name)
 
-        self.lbl_down = Label(text="0.00", size_hint_x=0.25, color=[0,1,0,1])
+        self.lbl_down = Label(text="0.00", size_hint_x=0.25, color=COLOR_DOWN)
         self.add_widget(self.lbl_down)
 
-        self.lbl_up = Label(text="0.00", size_hint_x=0.25, color=[0,0.5,1,1])
+        self.lbl_up = Label(text="0.00", size_hint_x=0.25, color=COLOR_UP) # <-- New Color
         self.add_widget(self.lbl_up)
 
         self.dropdown = self._create_dropdown()
@@ -168,13 +187,20 @@ class AppRow(BoxLayout):
 
 
 # =========================
-#   5. APP DASHBOARD
+#   5. APP DASHBOARD (SORTING LOGIC ADDED)
 # =========================
 class AppDashboard(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.orientation = "vertical"
-        self.add_widget(TableHeader())
+        
+        # SORTING STATE
+        self.sort_key = 'download' # Default sort by download
+        self.sort_desc = True      # Default High -> Low
+
+        # Pass 'self.change_sort' to the Header so buttons can call it
+        self.add_widget(TableHeader(self.change_sort))
+        
         self.scroll_view = ScrollView(size_hint=(1, 1), do_scroll_x=False)
         self.rows_container = BoxLayout(orientation='vertical', size_hint_y=None)
         self.rows_container.bind(minimum_height=self.rows_container.setter('height'))
@@ -182,30 +208,58 @@ class AppDashboard(BoxLayout):
         self.add_widget(self.scroll_view)
         self.rows = {}
 
+    def change_sort(self, key):
+        """Called when user clicks a header button"""
+        if self.sort_key == key:
+            # Toggle Ascending/Descending if clicking same column
+            self.sort_desc = not self.sort_desc
+        else:
+            # New column? Default to Descending (Big numbers first)
+            self.sort_key = key
+            self.sort_desc = True
+
     def update_apps(self, rates):
         current_apps = set(rates.keys())
         existing_apps = set(self.rows.keys())
         
-        # Remove old (Only if truly deleted, which shouldn't happen often now)
+        # Remove old apps
         for app in existing_apps - current_apps:
             self.rows_container.remove_widget(self.rows[app])
             del self.rows[app]
 
-        # Add new & Update
-        # Sorted keys ensure deterministic order when adding multiple new apps
-        for app in sorted(rates.keys()):
-            down, up = rates[app]
+        # --- SORTING LOGIC ---
+        # Convert dict to list so we can sort it: [('Chrome', (100, 50)), ...]
+        data_list = list(rates.items())
+
+        if self.sort_key == 'name':
+            # Sort A-Z. 'not self.sort_desc' makes A top, Z bottom default
+            data_list.sort(key=lambda x: x[0].lower(), reverse=not self.sort_desc)
+        elif self.sort_key == 'download':
+            # Sort by Download Speed (Index 0 of tuple)
+            data_list.sort(key=lambda x: x[1][0], reverse=self.sort_desc)
+        elif self.sort_key == 'upload':
+            # Sort by Upload Speed (Index 1 of tuple)
+            data_list.sort(key=lambda x: x[1][1], reverse=self.sort_desc)
+
+        # --- RENDER IN ORDER ---
+        # We clear the container and re-add widgets in the new sorted order
+        # (This is efficient enough for ~50 apps)
+        self.rows_container.clear_widgets()
+
+        for app_name, (down, up) in data_list:
+            # Only create row if it doesn't exist
+            if app_name not in self.rows:
+                self.rows[app_name] = AppRow(app_name)
             
-            if app not in self.rows:
-                row = AppRow(app)
-                self.rows[app] = row
-                self.rows_container.add_widget(row)
+            # Update data
+            self.rows[app_name].update_data(down, up)
             
-            self.rows[app].update_data(down, up)
+            # Add to container (in the new sorted order)
+            self.rows_container.add_widget(self.rows[app_name])
 
 
 # =========================
-#   6. LOG VIEWER CLASSES
+#   6. LOG VIEWER CLASSES (PRESERVED)
 # =========================
 
 class LogRow(BoxLayout):
