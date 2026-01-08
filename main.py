@@ -9,7 +9,7 @@ from kivy.core.window import Window
 
 from core.packet_sniffer import PacketSniffer
 from core.aggregator import TrafficAggregator
-from core.pinger import NetworkPinger  # <--- NEW IMPORT
+from core.pinger import NetworkPinger  
 from ui.widgets import TrafficGraph, AppDashboard, LogViewer, PingGraph
 
 class NetworkApp(App):
@@ -25,7 +25,7 @@ class NetworkApp(App):
         # 2. Start Aggregator
         self.aggregator = TrafficAggregator()
         
-        # 3. Start Pinger (NEW)
+        # 3. Start Pinger 
         self.pinger = NetworkPinger()
         self.pinger.start()
 
@@ -37,21 +37,22 @@ class NetworkApp(App):
         # --- Update Traffic Tab ---
         traffic_data = self.sniffer.get_traffic_data()
         rates = self.aggregator.calculate_rates(traffic_data)
-        total_download = sum(down for down, up in rates.values())
         
         if "main_graph" in self.root.ids:
-            self.root.ids.main_graph.update_graph(total_download, sum(up for down, up in rates.values()))
+            total_download = sum(down for down, up in rates.values())
+            total_upload = sum(up for down, up in rates.values())
+            self.root.ids.main_graph.update_graph(total_download, total_upload)
 
         if "dashboard" in self.root.ids:
             self.root.ids.dashboard.update_apps(rates)
             
-        # --- Update Latency Tab (NEW) ---
+        # --- Update Latency Tab ---
         if "ping_graph" in self.root.ids:
             pings = self.pinger.get_pings()
-            # Pass data: Cloudflare, Google, Valve
+            # Send data for just the two active lines
             self.root.ids.ping_graph.update_graph(
                 pings.get("Cloudflare (1.1.1.1)", 0),
-                pings.get("Google (8.8.8.8)", 0),
+                pings.get("Google (8.8.8.8)", 0)
             )
 
     def save_database(self, dt):
@@ -66,7 +67,7 @@ class NetworkApp(App):
     def on_stop(self):
         if hasattr(self, 'sniffer'): self.sniffer.stop()
         if hasattr(self, 'aggregator'): self.aggregator.save_data()
-        if hasattr(self, 'pinger'): self.pinger.stop() # Stop Pinger
+        if hasattr(self, 'pinger'): self.pinger.stop() 
 
 if __name__ == "__main__":
     NetworkApp().run()
