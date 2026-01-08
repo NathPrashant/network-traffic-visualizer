@@ -26,7 +26,6 @@ COLOR_TEXT = [1, 1, 1, 1]       # White
 # New Colors for Ping
 COLOR_PING_CF = [1, 0.5, 0, 1]  # Orange (Cloudflare)
 COLOR_PING_G  = [1, 1, 0, 1]    # Yellow (Google)
-COLOR_PING_CS = [1, 0, 0, 1]    # Red (CS2/Valve)
 
 # =========================
 #   CUSTOM HOVER BUTTON
@@ -108,38 +107,31 @@ class PingGraph(BoxLayout):
         # 3 Lines for 3 Servers
         self.plot_cf = LinePlot(color=COLOR_PING_CF, line_width=2)
         self.plot_g  = LinePlot(color=COLOR_PING_G, line_width=2)
-        self.plot_cs = LinePlot(color=COLOR_PING_CS, line_width=2)
 
         self.graph.add_plot(self.plot_cf)
         self.graph.add_plot(self.plot_g)
-        self.graph.add_plot(self.plot_cs)
         
         self.add_widget(self.graph)
         self.points_cf = []
         self.points_g = []
-        self.points_cs = []
 
-    def update_graph(self, ping_cf, ping_g, ping_cs):
+    def update_graph(self, ping_cf, ping_g):
         current_x = len(self.points_cf)
         
         self.points_cf.append((current_x, ping_cf))
         self.points_g.append((current_x, ping_g))
-        self.points_cs.append((current_x, ping_cs))
 
         # Keep only last 60 seconds
         if len(self.points_cf) > 60:
             self.points_cf.pop(0)
             self.points_g.pop(0)
-            self.points_cs.pop(0)
             self.points_cf = [(x - 1, y) for x, y in self.points_cf]
             self.points_g = [(x - 1, y) for x, y in self.points_g]
-            self.points_cs = [(x - 1, y) for x, y in self.points_cs]
 
         # Auto-scale Y Axis (if ping > 200ms, graph expands)
         max_v = max(
             max([y for x, y in self.points_cf] or [0]), 
             max([y for x, y in self.points_g] or [0]),
-            max([y for x, y in self.points_cs] or [0])
         )
         target_ymax = max(100, math.ceil(max_v / 50) * 50) # Steps of 50ms
         self.graph.ymax = int(target_ymax)
@@ -147,7 +139,6 @@ class PingGraph(BoxLayout):
 
         self.plot_cf.points = self.points_cf
         self.plot_g.points = self.points_g
-        self.plot_cs.points = self.points_cs
 
 
 # =========================
