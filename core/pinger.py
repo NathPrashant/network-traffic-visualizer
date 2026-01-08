@@ -9,13 +9,13 @@ class NetworkPinger:
         self.running = False
         self.lock = threading.Lock()
         # TARGETS: 
-        # 1. Cloudflare (Anycast - connects to nearest city, likely Mumbai/Delhi)
-        # 2. Google (Anycast)
-        # 3. Mumbai Data Center (Linode Mumbai) - Acts as a proxy for CS2 Mumbai latency
+        # 1. Cloudflare (1.1.1.1) - usually connects to nearest data center
+        # 2. Google (8.8.8.8)
+        # 3. Mumbai Server (Tata Communications) - Reliable Indian Backbone
         self.targets = {
             "Cloudflare (1.1.1.1)": "1.1.1.1",
             "Google (8.8.8.8)": "8.8.8.8",
-            "CS2 (Mumbai Proxy)": "139.162.200.1" 
+            "Mumbai Server": "202.54.1.30" 
         }
         # Store latest ping results
         self.pings = {name: 0.0 for name in self.targets}
@@ -48,8 +48,6 @@ class NetworkPinger:
             # -w 1000 -> Timeout 1000ms
             param = '-n' if platform.system().lower() == 'windows' else '-c'
             
-            # Use shell=True to hide window properly on some Windows versions
-            # But normally specific startupinfo flags are cleaner (used below)
             command = ['ping', param, '1', '-w', '1000', ip]
             
             startupinfo = None
@@ -59,7 +57,7 @@ class NetworkPinger:
             
             output = subprocess.check_output(command, startupinfo=startupinfo, text=True)
             
-            # Extract time=XXms
+            # Extract time=XXms or time<1ms
             match = re.search(r"time[=<](\d+[\.]?\d*)", output)
             if match:
                 return float(match.group(1))
