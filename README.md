@@ -52,8 +52,8 @@ sudo apt install -y python3 python3-venv python3-dev libpcap-dev
 ```
 
 ```bash
-git clone https://github.com/your-username/per-app-network-monitor.git
-cd per-app-network-monitor
+git clone https://github.com/NathPrashant/network-traffic-visualizer.git
+cd network-traffic-visualizer
 ```
 
 ```bash
@@ -79,8 +79,13 @@ Root privileges are required for packet capture.
 2. Install Npcap (WinPcap API-compatible mode)
 
 ```bat
-git clone https://github.com/your-username/per-app-network-monitor.git
-cd per-app-network-monitor
+git clone https://github.com/NathPrashant/network-traffic-visualizer.git
+```
+
+change directory to network-traffic-visualizer via terminal. Eg:
+
+```bat
+cd network-traffic-visualizer
 ```
 
 ```bat

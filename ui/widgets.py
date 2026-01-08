@@ -6,7 +6,7 @@ from kivy.metrics import dp
 from kivy.graphics import Color, Rectangle
 
 # --- GRAPH IMPORTS ---
-from kivy_garden.graph import Graph, MeshLinePlot
+from kivy.garden.graph import Graph, MeshLinePlot
 import psutil
 import math
 
