@@ -52,7 +52,6 @@ class NetworkApp(App):
             self.root.ids.ping_graph.update_graph(
                 pings.get("Cloudflare (1.1.1.1)", 0),
                 pings.get("Google (8.8.8.8)", 0),
-                pings.get("CS2 (Valve Mumbai)", 0)
             )
 
     def save_database(self, dt):
